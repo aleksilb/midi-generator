@@ -6,6 +6,9 @@ def main():
     pitch_chooser = PitchChooser(60)
     length_chooser = LengthChooser()
     velocity_chooser = VelocityChooser()
+    pitch_lfo = SineLFO(1300)
+    length_lfo = TriangleLFO(800)
+    velocity_lfo = SineLFO(220)
     mid = MidiFile()
     track = MidiTrack()
     mid.tracks.append(track)
@@ -15,21 +18,49 @@ def main():
     time = 0
 
     while time < 32 * 120:
-        current_length = length_chooser.choose_length(triangle(time / 70, 10, 1))
-        pitch = pitch_chooser.choose_pitch(math.sin(time / 300), 1.5)
-        velocity = velocity_chooser.choose_velocity(math.sin(time / 10))
+        len_lfo_val = length_lfo.get_value(time)
+        note_length = length_chooser.choose_length(len_lfo_val)
+
+        ptc_lfo_val = pitch_lfo.get_value(time)
+        pitch = pitch_chooser.choose_pitch(ptc_lfo_val, 1.5)
+
+        vel_lfo_val = velocity_lfo.get_value(time)
+        velocity = velocity_chooser.choose_velocity(vel_lfo_val)
 
         track.append(Message('note_on', note=pitch, velocity=velocity, time=0))
-        track.append(Message('note_off', note=pitch, velocity=velocity, time=current_length))
-        time += current_length
+        track.append(Message('note_off', note=pitch, velocity=velocity, time=note_length))
+        time += note_length
 
     mid.save('new_song.mid')
 
 
-def triangle(position, length, maximum):
-    in_position = (position % length - (length / 2)) / (length / 2)
+class TriangleLFO:
+    """Gives cyclic values of a triangle wave"""
+    _cycle = None
 
-    return round((1 - abs(in_position)) * maximum)
+    def __init__(self, cycle):
+        self._cycle = cycle
+
+    def get_value(self, time):
+        cycle_pos = time % self._cycle
+        adjust_pos = (cycle_pos - self._cycle / 2) / (self._cycle / 2)
+
+        return 1 - abs(adjust_pos)
+
+
+class SineLFO:
+    """Gives cyclic values of a sine wave"""
+    _cycle = None
+
+    def __init__(self, cycle):
+        self._cycle = cycle
+
+    def get_value(self, time):
+        cycle_pos = time % self._cycle
+        adjust_pos = (cycle_pos / self._cycle) * (math.pi * 2)
+
+        value = (math.sin(adjust_pos) + 1) / 2
+        return value
 
 
 class ListChooser:
@@ -39,7 +70,7 @@ class ListChooser:
 
     def __init__(self, choices):
         self._choices = choices
-        self._number_chooser = NumberChooser(0, len(choices))
+        self._number_chooser = NumberChooser(0, len(choices) - 1)
 
     def choose(self, position):
         choice = self._number_chooser.choose(position)
@@ -56,13 +87,15 @@ class NumberChooser:
         self.maximum = maximum
 
     def choose(self, position):
-        return math.floor(position * (self.maximum - self.minimum)) + self.minimum
+        return round(position * (self.maximum - self.minimum)) + self.minimum
 
 
 class LengthChooser:
     """Chooses note lengths"""
-    _lengths = [30, 60, 120, 240]
-    _list_chooser = ListChooser(_lengths)
+
+    def __init__(self):
+        self._lengths = [note_time(1/16), note_time(1/8), note_time(1/4), note_time(1/2)]
+        self._list_chooser = ListChooser(self._lengths)
 
     def choose_length(self, position):
         return self._list_chooser.choose(position)
@@ -78,7 +111,7 @@ class PitchChooser:
     def __init__(self, root):
         self._root = root
 
-    def choose_pitch(self, position, octaves=1):
+    def choose_pitch(self, position, octaves=1.0):
         scaled_position = position * octaves
         octave = math.floor(scaled_position)
         cycle_position = scaled_position - octave
@@ -95,5 +128,10 @@ class VelocityChooser:
 
     def choose_velocity(self, position):
         return self._number_chooser.choose(position)
+
+
+def note_time(notes):
+    _note_length = 480
+    return round(notes * _note_length)
 
 main()
