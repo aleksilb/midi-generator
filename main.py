@@ -1,14 +1,15 @@
 from mido import Message, MidiFile, MidiTrack
 import math
-
+import random
 
 def main():
     pitch_chooser = PitchChooser(60)
     length_chooser = LengthChooser()
     velocity_chooser = VelocityChooser()
-    pitch_lfo = SineLFO(1300)
-    length_lfo = TriangleLFO(800)
-    velocity_lfo = SineLFO(220)
+    pitch_osc = SineOsc(1300)
+    #pitch_osc = RandOsc()
+    length_osc = TriangleOsc(800)
+    velocity_osc = SineOsc(220)
     mid = MidiFile()
     track = MidiTrack()
     mid.tracks.append(track)
@@ -16,15 +17,16 @@ def main():
     track.append(Message('program_change', program=12, time=0))
 
     time = 0
+    bars = 4
 
-    while time < 32 * 120:
-        len_lfo_val = length_lfo.get_value(time)
+    while time < note_time(4 * bars):
+        len_lfo_val = length_osc.get_value(time)
         note_length = length_chooser.choose_length(len_lfo_val)
 
-        ptc_lfo_val = pitch_lfo.get_value(time)
+        ptc_lfo_val = pitch_osc.get_value(time)
         pitch = pitch_chooser.choose_pitch(ptc_lfo_val, 1.5)
 
-        vel_lfo_val = velocity_lfo.get_value(time)
+        vel_lfo_val = velocity_osc.get_value(time)
         velocity = velocity_chooser.choose_velocity(vel_lfo_val)
 
         track.append(Message('note_on', note=pitch, velocity=velocity, time=0))
@@ -34,7 +36,7 @@ def main():
     mid.save('new_song.mid')
 
 
-class TriangleLFO:
+class TriangleOsc:
     """Gives cyclic values of a triangle wave"""
     _cycle = None
 
@@ -48,7 +50,7 @@ class TriangleLFO:
         return 1 - abs(adjust_pos)
 
 
-class SineLFO:
+class SineOsc:
     """Gives cyclic values of a sine wave"""
     _cycle = None
 
@@ -62,6 +64,12 @@ class SineLFO:
         value = (math.sin(adjust_pos) + 1) / 2
         return value
 
+
+class RandOsc:
+    """Gives random values"""
+
+    def get_value(self, time):
+        return random.random()
 
 class ListChooser:
     """Chooses value from a list"""
