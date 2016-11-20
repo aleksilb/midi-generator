@@ -4,12 +4,16 @@ import random
 
 def main():
     pitch_chooser = PitchChooser(60)
+    octave_chooser = NumberChooser(1, 3)
     length_chooser = LengthChooser()
     velocity_chooser = VelocityChooser()
-    pitch_osc = SineOsc(1300)
-    #pitch_osc = RandOsc()
-    length_osc = TriangleOsc(800)
-    velocity_osc = SineOsc(220)
+    pitch_mod = SineMod(1300)
+    octave_mod = RandMod()
+    octave_mod_snh = SampleHoldMod(note_time(1/4))
+    #pitch_mod_1 = RandMod()
+    #pitch_mod = SampleHoldMod(note_time(1/2))
+    length_mod = TriangleMod(800)
+    velocity_mod = SineMod(220)
     mid = MidiFile()
     track = MidiTrack()
     mid.tracks.append(track)
@@ -20,14 +24,19 @@ def main():
     bars = 4
 
     while time < note_time(4 * bars):
-        len_lfo_val = length_osc.get_value(time)
-        note_length = length_chooser.choose_length(len_lfo_val)
+        len_mod_val = length_mod.value(time)
+        note_length = length_chooser.choose_length(len_mod_val)
 
-        ptc_lfo_val = pitch_osc.get_value(time)
-        pitch = pitch_chooser.choose_pitch(ptc_lfo_val, 1.5)
+        #ptc_mod_val = pitch_mod.value(time, pitch_mod_1.value(time))
+        ptc_mod_val = pitch_mod.value(time)
+        oct_mod_val = octave_mod_snh.value(time, octave_mod.value(time))
+        octave = octave_chooser.choose(oct_mod_val)
+        print(oct_mod_val)
+        print(octave)
+        pitch = pitch_chooser.choose_pitch(ptc_mod_val, octave)
 
-        vel_lfo_val = velocity_osc.get_value(time)
-        velocity = velocity_chooser.choose_velocity(vel_lfo_val)
+        vel_mod_val = velocity_mod.value(time)
+        velocity = velocity_chooser.choose_velocity(vel_mod_val)
 
         track.append(Message('note_on', note=pitch, velocity=velocity, time=0))
         track.append(Message('note_off', note=pitch, velocity=velocity, time=note_length))
@@ -36,28 +45,28 @@ def main():
     mid.save('new_song.mid')
 
 
-class TriangleOsc:
+class TriangleMod:
     """Gives cyclic values of a triangle wave"""
     _cycle = None
 
     def __init__(self, cycle):
         self._cycle = cycle
 
-    def get_value(self, time):
+    def value(self, time):
         cycle_pos = time % self._cycle
         adjust_pos = (cycle_pos - self._cycle / 2) / (self._cycle / 2)
 
         return 1 - abs(adjust_pos)
 
 
-class SineOsc:
+class SineMod:
     """Gives cyclic values of a sine wave"""
     _cycle = None
 
     def __init__(self, cycle):
         self._cycle = cycle
 
-    def get_value(self, time):
+    def value(self, time):
         cycle_pos = time % self._cycle
         adjust_pos = (cycle_pos / self._cycle) * (math.pi * 2)
 
@@ -65,11 +74,29 @@ class SineOsc:
         return value
 
 
-class RandOsc:
+class RandMod:
     """Gives random values"""
 
-    def get_value(self, time):
+    def value(self, time):
         return random.random()
+
+
+class SampleHoldMod:
+    """Takes modulation value and holds it for a given time"""
+    hold_time = 0
+    _held_values = {}
+
+    def __init__(self, hold_time):
+        self.hold_time = hold_time
+
+    def value(self, time, value):
+        hold_slot = math.floor(time / self.hold_time)
+        if hold_slot in self._held_values:
+            return self._held_values[hold_slot]
+        else:
+            self._held_values[hold_slot] = value
+            return value
+
 
 class ListChooser:
     """Chooses value from a list"""
