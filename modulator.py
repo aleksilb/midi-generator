@@ -2,6 +2,40 @@ import math
 import random
 
 
+class CombinedMod:
+    """Combines multiple modulators with given weights"""
+    _modulators = []
+    _weights = []
+    _total_weight = 0
+
+    def __init__(self, modulators, weights):
+        self._modulators = modulators
+        self._weights = weights
+        for weight in weights:
+            self._total_weight += weight
+
+    def value(self, time):
+        value = 0
+        for index, modulator in enumerate(self._modulators):
+            weight = self._weights[index] / self._total_weight
+            value += weight * modulator.value(time)
+        return value
+
+
+class ValueMod:
+    """Takes value of one modulator and modulates it with another"""
+    _modulator = None
+    _modulated = None
+
+    def __init__(self, modulator, modulated):
+        self._modulator = modulator
+        self._modulated = modulated
+
+    def value(self, time):
+        orig_value = self._modulated.value(time)
+        return self._modulator.value(time, orig_value)
+
+
 class TriangleMod:
     """Gives cyclic values of a triangle wave"""
     _cycle = None
@@ -34,7 +68,8 @@ class SineMod:
 class RandMod:
     """Gives random values"""
 
-    def value(self, time):
+    @staticmethod
+    def value(time):
         return random.random()
 
 
@@ -54,3 +89,10 @@ class SampleHoldMod:
             self._held_values[hold_slot] = value
             return value
 
+
+class InvertMod:
+    """Takes modulation value and inverts it"""
+
+    @staticmethod
+    def value(time, value):
+        return 1 - value
